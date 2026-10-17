@@ -72,7 +72,71 @@ class MyGameManager(BoggleGame):
         If `word` is not present on the board, return None.
         """
         word = word.lower()
-        raise NotImplementedError("method find_word_in_board") # TODO: implement your code here
+
+        # Try starting from each cell on the board
+        for r in range(self.size):
+            for c in range(self.size):
+                visited = set()
+                path = []
+                if self._dfs_find_word(word, 0, r, c, visited, path):
+                    return path
+
+        return None
+
+    def _dfs_find_word(
+        self, 
+        word: str, 
+        word_idx: int, 
+        row: int, 
+        col: int, 
+        visited: set,
+        path: List[Tuple[int, int]]
+    ) -> bool:
+        """DFS helper to find a word path on the board.
+
+        Args:
+            word: The word we're looking for (lowercase)
+            word_idx: Current index in the word
+            row: Current row on the board
+            col: Current column on the board
+            visited: Set of (row, col) tuples already used in this path
+            path: List of (row, col) coordinates found so far
+
+        Returns:
+            True if the word is found starting from this position
+        """
+        # Base case: we've matched all characters
+        if word_idx == len(word):
+            return True
+
+        # Boundary check
+        if row < 0 or row >= self.size or col < 0 or col >= self.size:
+            return False
+
+        # Already visited in this path
+        if (row, col) in visited:
+            return False
+
+        # Character doesn't match
+        if self.board[row][col] != word[word_idx]:
+            return False
+
+        # Mark as visited and add to path
+        visited.add((row, col))
+        path.append((row, col))
+
+        # Try all 8 neighbors
+        for dr in [-1, 0, 1]:
+            for dc in [-1, 0, 1]:
+                if dr == 0 and dc == 0:
+                    continue  # Skip the current cell
+                if self._dfs_find_word(word, word_idx + 1, row + dr, col + dc, visited, path):
+                    return True
+
+        # Backtrack
+        visited.remove((row, col))
+        path.pop()
+        return False
 
     def add_word(self, word: str) -> int:
         """This method is provided for you, but feel free to change it.
@@ -110,7 +174,17 @@ class MyGameManager(BoggleGame):
         Returns:
             A set containing all words found on the board.
         """
-        raise NotImplementedError("method dictionary_driven_search") # TODO: implement your code here
+        found_words = set()
+
+        # Iterate through all words in the dictionary
+        for word in self.dictionary:
+            word_lower = word.lower()
+            # Only consider words of length 4 or more (scoring requirement)
+            if len(word_lower) > SHORT:
+                if self.find_word_in_board(word_lower) is not None:
+                    found_words.add(word_lower)
+
+        return found_words
 
     def board_driven_search(self) -> Set[str]:
         """Find all words using a board-driven search.
@@ -122,4 +196,63 @@ class MyGameManager(BoggleGame):
         Returns:
             A set containing all words found on the board.
         """
-        raise NotImplementedError("method board_driven_search") # TODO: implement your code here
+        found_words = set()
+
+        # Try starting a search from each cell on the board
+        for r in range(self.size):
+            for c in range(self.size):
+                visited = set()
+                path_str = ""
+                path_coords = []
+                self._dfs_board_search(r, c, visited, path_str, path_coords, found_words)
+
+        return found_words
+
+    def _dfs_board_search(
+        self,
+        row: int,
+        col: int,
+        visited: set,
+        current_word: str,
+        path_coords: List[Tuple[int, int]],
+        found_words: Set[str]
+    ) -> None:
+        """DFS helper for board-driven search.
+
+        Explores all possible paths from a starting position and collects valid words.
+        """
+        # Boundary check
+        if row < 0 or row >= self.size or col < 0 or col >= self.size:
+            return
+
+        # Already visited in this path
+        if (row, col) in visited:
+            return
+
+        # Add current cell to path
+        current_word += self.board[row][col]
+        path_coords.append((row, col))
+        visited.add((row, col))
+
+        # Check if current word is valid only if it's long enough
+        if len(current_word) > SHORT:
+            if self.dictionary.contains(current_word.lower()):
+                found_words.add(current_word.lower())
+
+        # Prune: if current_word is not a valid prefix, stop exploring this path
+        if not self.dictionary.is_prefix(current_word.lower()):
+            # Backtrack
+            visited.remove((row, col))
+            path_coords.pop()
+            return
+
+        # Explore all 8 neighbors
+        for dr in [-1, 0, 1]:
+            for dc in [-1, 0, 1]:
+                if dr == 0 and dc == 0:
+                    continue  # Skip the current cell
+                self._dfs_board_search(row + dr, col + dc, visited, current_word, path_coords, found_words)
+
+        # Backtrack
+        visited.remove((row, col))
+        path_coords.pop()
